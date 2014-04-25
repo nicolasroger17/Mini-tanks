@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <title>Tanks !</title>
+        <style>
+            #board{
+                width: 1280px;
+                height: 800px;
+                margin: auto;
+                margin-top: 40px;
+                background: url('/public/board.jpg');
+            }
+            .tank{
+                background: url("/public/tank1.png");
+                height: 70px;
+                width: 70px;
+                background-position: 10px 10px;
+                position: absolute;
+                background-repeat: no-repeat;
+            }
+            .tube{
+                height: 45px;
+                width: 45px;
+                background: url('/public/tank1_top.png');
+                background-repeat: no-repeat;
+            }
+        </style>
+    </head>
+
+    <body>
+        <h1>Tank</h1>
+
+        <section id="playerList">
+            
+        </section>
+
+        <input type='button' id='startGame' value='Start Game'>
+
+        <script src="http://code.jquery.com/jquery-1.10.1.min.js"></script>
+        <script src="/socket.io/socket.io.js"></script>
+        <script>
+
+            // Connexion à socket.io
+            var socket = io.connect('http://localhost:8080');
+
+            // On demande le pseudo, on l'envoie au serveur et on l'affiche dans le titre
+            var pseudo = prompt('Quel est votre pseudo ?');
+            socket.emit('nouveau_client', pseudo);
+            document.title = pseudo + ' - ' + document.title;
+
+            // Quand un nouveau client se connecte, on affiche l'information
+            socket.on('refreshPlayers', function(pseudo) {
+                $("#playerList").empty();
+                $("#playerList").append("Listes des joueurs");
+                for(var i = 0; i < pseudo.length; i++){
+                    $("#playerList").append(
+                        "<p>"+pseudo[i]+"</p>"
+                    );
+                }
+            });
+
+            socket.on('newGame', function(tanks) {
+                $("body").empty();
+                $("body").append(
+                    "<div id='board'></div>"
+                );
+                for(var i = 0; i < tanks.length; i++){
+                    createTank(tanks[i]);
+                }
+                setListeners();
+            });
+
+            $("#startGame").click(function(){
+                socket.emit("gameStart");
+            });
+
+            socket.on('updateTank', function(tank){
+                moveTank(tank);
+            });
+
+            function createTank(tank){
+                var html = "<div id='"+tank.name+"' class='tank' style='margin-top : "+tank.position.top+"px;margin-left"+": "+tank.position.left+"px'>"+
+                                "<div class='tube'>"+
+                                "</div>"+
+                            "</div>";
+                $("#board").append(html);
+            }
+
+            function moveTank(tank){
+                $("#"+tank.name).css("margin-top",tank.position.top);
+                $("#"+tank.name).css("margin-left",tank.position.left);
+            }
+
+            function setListeners(){
+                $("body").keydown(function(event){
+                    console.log("key : "+event.which);
+                    if(event.which == 37){
+                        socket.emit('left');
+                    }
+                    else if(event.which == 38){
+                        socket.emit('up');
+                    }
+                    else if(event.which == 39){
+                        socket.emit('right');
+                    }
+                    else if(event.which == 40){
+                        socket.emit('down');
+                    }
+                });
+            }
+        </script>
+    </body>
+</html>
