@@ -9,7 +9,6 @@ app.use('/public', express.static(__dirname + "/public"));
 
 // Chargement de la page index.html
 app.get('/', function (req, res) {
-    console.log("dirname : " + __dirname);
     res.sendfile(__dirname + '/index.html');
 });
 
@@ -30,67 +29,132 @@ io.sockets.on('connection', function (socket, pseudo) {
         socket.emit('newGame', tanks);
     });
 
-    var thisPseudo = "";
-    socket.on('left', function(){
+    socket.on('action', function(keyList){
         socket.get('pseudo', function(error, pseudo){
             for(var tank in tanks){
                 if(tanks[tank].name == pseudo){
-                    if(tanks[tank].position.left > 0)
-                        tanks[tank].position.left -= 10;
-                    socket.emit('updateTank', tanks[tank]);
-                    socket.broadcast.emit('updateTank', tanks[tank]);
-                }
-            }
-        });        
-    });
-    socket.on('up', function(){
-        socket.get('pseudo', function(error, pseudo){
-            for(var tank in tanks){
-                if(tanks[tank].name == pseudo){
-                    if(tanks[tank].position.top > 0)
-                        tanks[tank].position.top -= 10;
-                    socket.emit('updateTank', tanks[tank]);
-                    socket.broadcast.emit('updateTank', tanks[tank]);
-                }
-            }
-        });        
-    });
-    socket.on('right', function(){
-        socket.get('pseudo', function(error, pseudo){
-            for(var tank in tanks){
-                if(tanks[tank].name == pseudo){
-                    if(tanks[tank].position.left < 1210)
-                        tanks[tank].position.left += 10;
-                    socket.emit('updateTank', tanks[tank]);
-                    socket.broadcast.emit('updateTank', tanks[tank]);
-                }
-            }
-        });        
-    });
-    socket.on('down', function(){
-        socket.get('pseudo', function(error, pseudo){       
-            for(var tank in tanks){
-                if(tanks[tank].name == pseudo){
-                    if(tanks[tank].position.top < 730)
-                        tanks[tank].position.top += 10;
+                    if(keyList[37]){
+                        if(tanks[tank].position.left > 0)
+                            tanks[tank].position.left -= 1;
+                    }
+                    if(keyList[38]){
+                        if(tanks[tank].position.top > 0)
+                            tanks[tank].position.top -= 1;
+                    }
+                    if(keyList[39]){
+                        if(tanks[tank].position.left < 1210)
+                            tanks[tank].position.left += 1;
+                    }
+                    if(keyList[40]){
+                        if(tanks[tank].position.top < 730)
+                            tanks[tank].position.top += 1;
+                    }
+                    if(keyList[83]){
+                        tanks[tank].rotation += 1;
+                    }
+                    if(keyList[90]){
+                        tanks[tank].rotation -= 1;
+                    }
                     socket.emit('updateTank', tanks[tank]);
                     socket.broadcast.emit('updateTank', tanks[tank]);
                 }
             }
         });
     });
-});
 
-var tanks = Array();
-var walls = Array();
-var missiles = Array();
+    socket.on('fire', function(){
+        socket.get('pseudo', function(error, pseudo){
+            for(var tank in tanks){
+                if(tanks[tank].name == pseudo){
+                    createMissile(tanks[tank]);
+                }
+            }
+        });        
+    });
 
-var defaultPosition = Array({top: 40, left: 40}, {top: 720, left: 1200});
-function initializeTanks(){
-    for(var i = 0; i < pseudoList.length; i++){
-        tanks.push({name: pseudoList[i], position: defaultPosition[i]});
+    var tanks = Array();
+    var walls = Array();
+    var missiles = Array();
+    var missilesCount = 0;
+
+    var defaultPosition = Array({top: 40, left: 40}, {top: 720, left: 1200});
+    function initializeTanks(){
+        for(var i = 0; i < pseudoList.length; i++){
+            tanks.push({name: pseudoList[i], position: defaultPosition[i], rotation: 0});
+        }
     }
-}
 
+    var iMissiles = false;
+    function createMissile(tank){
+        var move = moves(tank.rotation);
+        var missile = {id: "missile"+missilesCount, rotation: tank.rotation, top: 70 + tank.position.top, left: 344 + tank.position.left, x: move.x, y: move.y};
+        missiles.push(missile);
+        missilesCount++;
+        socket.emit('createMissile', missile);
+        socket.broadcast.emit('createMissile', missile);
+        if(!iMissiles){
+            iMissiles = setInterval(function(){
+                socket.emit('updateMissiles', missiles);
+                socket.broadcast.emit('updateMissiles', missiles);
+                updateMissiles();
+            },50);
+        }
+    }
 
+    function moves(rotation){
+        rotation = (Math.PI * rotation) / 180;
+        var move = {x: 1, y: 1};
+        var h = Math.sqrt(2);
+        if(rotation <= 90){
+            move.x = h * ((180 * Math.sin(rotation)) / Math.PI);
+            move.y = -h * ((180 * Math.cos(rotation)) / Math.PI);
+        }
+        else if(rotation > 90 && rotation <= 180){
+            move.x = h * ((180 * Math.sin(rotation - 90)) / Math.PI);
+            move.y = h * ((180 * Math.cos(rotation - 90)) / Math.PI);
+        }
+        else if(rotation > 180 && rotation <= 270){
+            move.x = -h * ((180 * Math.sin(rotation - 180)) / Math.PI);
+            move.y = h * ((180 * Math.cos(rotation - 180)) / Math.PI);
+        }
+        else if(rotation > 270){
+            move.x = -h * ((180 * Math.sin(270 - rotation)) / Math.PI);
+            move.y = -h * ((180 * Math.cos(270 - rotation)) / Math.PI);
+        }
+        move.x /= 10;
+        move.y /= 10;
+        return move;
+    }
+
+    function updateMissiles(){
+        for(var missile in missiles){
+            missiles[missile].top += missiles[missile].y;
+            missiles[missile].left += missiles[missile].x;
+            checkMissile(missiles[missile], missile);
+        }
+    }
+
+    function checkMissile(missile, index){
+        if(missile.left < 312 || missile.left > 1542 || missile.top < 40 || missile.top > 840){
+            missiles.splice(index, 1);
+            socket.emit('deleteMissile', missile.id);
+            socket.broadcast.emit('deleteMissile', missile.id);
+            if(missiles.length == 0){
+                clearInterval(iMissiles);
+                iMissiles = false;
+            }
+        }
+    }
+
+    function determineRotation(tank, pos){
+        var currRotation = 360 - ((((Math.atan2((pos.mouseX - pos.tankX), (pos.mouseY - pos.tankY))) * 180 ) / Math.PI) + 180);
+        if(Math.abs((360 + currRotation) - (360 + tank.rotation)) < 180){
+            tank.rotation += 1;
+        }
+        else{
+            tank.rotation -= 1;
+        }
+        return tank;
+    }
+});
 server.listen(8080);

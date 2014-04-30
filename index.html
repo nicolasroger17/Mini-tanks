@@ -20,10 +20,18 @@
                 background-repeat: no-repeat;
             }
             .tube{
-                height: 45px;
-                width: 45px;
+                height: 70px;
+                width: 70px;
                 background: url('/public/tank1_top.png');
                 background-repeat: no-repeat;
+                transition: -webkit-transform 0.1s ease;
+            }
+            .missile{
+                width: 10px;
+                height : 10px;
+                border-radius: 10px;
+                background: black;
+                position: absolute;
             }
         </style>
     </head>
@@ -37,7 +45,7 @@
 
         <input type='button' id='startGame' value='Start Game'>
 
-        <script src="http://code.jquery.com/jquery-1.10.1.min.js"></script>
+        <script src="/public/jquery.js"></script>
         <script src="/socket.io/socket.io.js"></script>
         <script>
 
@@ -76,8 +84,32 @@
             });
 
             socket.on('updateTank', function(tank){
-                moveTank(tank);
+                updateTank(tank);
             });
+
+            socket.on('createMissile', function(missile){
+                $("body").append("<div class='missile' style='-webkit-transform: rotate("+missile.rotation+"deg); top:"+missile.top+"; left:"+missile.left+";' id='"+missile.id+"'></div>");
+                console.log(missile);
+            });
+
+            socket.on('updateMissiles', function(missiles){
+                for(var missile in missiles){
+                    $("#"+missiles[missile].id).css("top", missiles[missile].top);
+                    $("#"+missiles[missile].id).css("left", missiles[missile].left);
+                }
+            });
+
+            socket.on('deleteMissile', function(missile){
+                $("#"+missile).remove();
+            });
+
+            var mouseListen;
+            var mousePos;
+
+            window.onmousemove = handleMouseMove;
+            function handleMouseMove(event) {
+                mousePos = event || window.event;
+            }
 
             function createTank(tank){
                 var html = "<div id='"+tank.name+"' class='tank' style='margin-top : "+tank.position.top+"px;margin-left"+": "+tank.position.left+"px'>"+
@@ -85,27 +117,41 @@
                                 "</div>"+
                             "</div>";
                 $("#board").append(html);
+                mouseListen = setInterval(function(){
+                    socket.emit('action', keyList);
+                }, 20);
             }
 
-            function moveTank(tank){
+            function updateTank(tank){
                 $("#"+tank.name).css("margin-top",tank.position.top);
                 $("#"+tank.name).css("margin-left",tank.position.left);
+                $("#"+tank.name+" .tube").css("-webkit-transform", "rotate("+tank.rotation+"deg)");
             }
 
+            var keyList = {37: false, 38: false, 39: false, 40: false, 90: false, 83: false};
             function setListeners(){
                 $("body").keydown(function(event){
-                    console.log("key : "+event.which);
-                    if(event.which == 37){
-                        socket.emit('left');
+                    if(event.which == 37
+                        || event.which == 38
+                        || event.which == 39
+                        || event.which == 40
+                        || event.which == 83
+                        || event.which == 90){
+                        keyList[event.which] = true;
                     }
-                    else if(event.which == 38){
-                        socket.emit('up');
+                    if(event.which == 32){
+                        console.log("fire");
+                        socket.emit('fire');
                     }
-                    else if(event.which == 39){
-                        socket.emit('right');
-                    }
-                    else if(event.which == 40){
-                        socket.emit('down');
+                });
+                $("body").keyup(function(event){
+                    if(event.which == 37
+                        || event.which == 38
+                        || event.which == 39
+                        || event.which == 40
+                        || event.which == 83
+                        || event.which == 90){
+                        keyList[event.which] = false;
                     }
                 });
             }
