@@ -45,7 +45,6 @@
 
         <input type='button' id='startGame' value='Start Game'>
 
-        <script src="/public/jquery.js"></script>
         <script src="/socket.io/socket.io.js"></script>
         <script>
 
@@ -59,48 +58,52 @@
 
             // Quand un nouveau client se connecte, on affiche l'information
             socket.on('refreshPlayers', function(pseudo) {
-                $("#playerList").empty();
-                $("#playerList").append("Listes des joueurs");
+                document.getElementById("playerList").innerHTML = "Listes des joueurs";
                 for(var i = 0; i < pseudo.length; i++){
-                    $("#playerList").append(
-                        "<p>"+pseudo[i]+"</p>"
-                    );
+                    document.getElementById("playerList").innerHTML += "<p>"+pseudo[i]+"</p>";
                 }
             });
 
             socket.on('newGame', function(tanks) {
-                $("body").empty();
-                $("body").append(
-                    "<div id='board'></div>"
-                );
+                document.body.innerHTML = "";
+                document.body.innerHTML += "<div id='board'></div>";
                 for(var i = 0; i < tanks.length; i++){
                     createTank(tanks[i]);
                 }
                 setListeners();
             });
 
-            $("#startGame").click(function(){
+            document.getElementById("startGame").onclick = function(){
                 socket.emit("gameStart");
-            });
+            }
 
             socket.on('updateTank', function(tank){
                 updateTank(tank);
             });
 
             socket.on('createMissile', function(missile){
-                $("body").append("<div class='missile' style='-webkit-transform: rotate("+missile.rotation+"deg); top:"+missile.top+"; left:"+missile.left+";' id='"+missile.id+"'></div>");
-                console.log(missile);
+                document.body.innerHTML += "<div class='missile' style='-webkit-transform: rotate("+missile.rotation+"deg); top:"+missile.top+"; left:"+missile.left+";' id='"+missile.id+"'></div>";
+            });
+
+            socket.on('updateGame', function(tanks, missiles){
+                for(var tank in tanks){
+                    updateTank(tanks[tank]);
+                }
+                for(var missile in missiles){
+                    updateMissile(missiles[missile]);
+                }
             });
 
             socket.on('updateMissiles', function(missiles){
                 for(var missile in missiles){
-                    $("#"+missiles[missile].id).css("top", missiles[missile].top);
-                    $("#"+missiles[missile].id).css("left", missiles[missile].left);
+                    document.getElementById(missiles[missile].id).style.top = missiles[missile].top+"px";
+                    document.getElementById(missiles[missile].id).style.left = missiles[missile].left+"px";
                 }
             });
 
             socket.on('deleteMissile', function(missile){
-                $("#"+missile).remove();
+                missile = document.getElementById(missile);
+                missile.parentNode.removeChild(missile);
             });
 
             var mouseListen;
@@ -116,21 +119,27 @@
                                 "<div class='tube'>"+
                                 "</div>"+
                             "</div>";
-                $("#board").append(html);
+                document.getElementById("board").innerHTML += html;
                 mouseListen = setInterval(function(){
                     socket.emit('action', keyList);
                 }, 20);
             }
 
             function updateTank(tank){
-                $("#"+tank.name).css("margin-top",tank.position.top);
-                $("#"+tank.name).css("margin-left",tank.position.left);
-                $("#"+tank.name+" .tube").css("-webkit-transform", "rotate("+tank.rotation+"deg)");
+                document.getElementById(tank.name).style.marginTop = tank.position.top+"px";
+                document.getElementById(tank.name).style.marginLeft = tank.position.left+"px";
+                document.getElementById(tank.name).getElementsByClassName("tube")[0].style.webkitTransform  = "rotate("+tank.rotation+"deg)";
+            }
+
+            function updateMissile(missile){
+                document.getElementById(missile.id).style.top = missile.top+"px";
+                document.getElementById(missile.id).style.left = missile.left+"px";
             }
 
             var keyList = {37: false, 38: false, 39: false, 40: false, 90: false, 83: false};
             function setListeners(){
-                $("body").keydown(function(event){
+                document.body.onkeydown = function(event){
+                    console.log(event);
                     if(event.which == 37
                         || event.which == 38
                         || event.which == 39
@@ -140,11 +149,10 @@
                         keyList[event.which] = true;
                     }
                     if(event.which == 32){
-                        console.log("fire");
                         socket.emit('fire');
                     }
-                });
-                $("body").keyup(function(event){
+                }
+                document.body.onkeyup = function(event){
                     if(event.which == 37
                         || event.which == 38
                         || event.which == 39
@@ -153,7 +161,7 @@
                         || event.which == 90){
                         keyList[event.which] = false;
                     }
-                });
+                }
             }
         </script>
     </body>

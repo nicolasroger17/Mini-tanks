@@ -5,6 +5,7 @@ var app = require('express')(),
     ent = require('ent'), // Permet de bloquer les caractères HTML (sécurité équivalente à htmlentities en PHP)
     fs = require('fs');
 
+io.set('transports', [ 'xhr-polling', 'jsonp-polling', 'htmlfile' ]);
 app.use('/public', express.static(__dirname + "/public"));
 
 // Chargement de la page index.html
@@ -23,10 +24,17 @@ io.sockets.on('connection', function (socket, pseudo) {
         socket.emit('refreshPlayers', pseudoList);
     });
 
+var updateGame = false;
     socket.on('gameStart', function(){
         initializeTanks();
         socket.broadcast.emit('newGame', tanks);
         socket.emit('newGame', tanks);
+
+        updateGame = setInterval(function(){
+            updateMissiles();
+            socket.broadcast.emit('updateGame', tanks, missiles);
+            socket.emit('updateGame', tanks, missiles);
+        }, 1);
     });
 
     socket.on('action', function(keyList){
@@ -55,8 +63,6 @@ io.sockets.on('connection', function (socket, pseudo) {
                     if(keyList[90]){
                         tanks[tank].rotation -= 1;
                     }
-                    socket.emit('updateTank', tanks[tank]);
-                    socket.broadcast.emit('updateTank', tanks[tank]);
                 }
             }
         });
@@ -84,7 +90,7 @@ io.sockets.on('connection', function (socket, pseudo) {
         }
     }
 
-    var iMissiles = false;
+    var iMissiles = Array();
     function createMissile(tank){
         var move = moves(tank.rotation);
         var missile = {id: "missile"+missilesCount, rotation: tank.rotation, top: 70 + tank.position.top, left: 344 + tank.position.left, x: move.x, y: move.y};
@@ -92,13 +98,6 @@ io.sockets.on('connection', function (socket, pseudo) {
         missilesCount++;
         socket.emit('createMissile', missile);
         socket.broadcast.emit('createMissile', missile);
-        if(!iMissiles){
-            iMissiles = setInterval(function(){
-                socket.emit('updateMissiles', missiles);
-                socket.broadcast.emit('updateMissiles', missiles);
-                updateMissiles();
-            },50);
-        }
     }
 
     function moves(rotation){
@@ -135,13 +134,16 @@ io.sockets.on('connection', function (socket, pseudo) {
     }
 
     function checkMissile(missile, index){
-        if(missile.left < 312 || missile.left > 1542 || missile.top < 40 || missile.top > 840){
+        if(missile.left < 312 || missile.left > 1562 || missile.top < 40 || missile.top > 840){
             missiles.splice(index, 1);
             socket.emit('deleteMissile', missile.id);
             socket.broadcast.emit('deleteMissile', missile.id);
-            if(missiles.length == 0){
-                clearInterval(iMissiles);
-                iMissiles = false;
+        }
+    }
+
+    function checkTankDestruction(){
+        for(var missile in missiles){
+            for(var tank in tanks){
             }
         }
     }
@@ -157,4 +159,5 @@ io.sockets.on('connection', function (socket, pseudo) {
         return tank;
     }
 });
+
 server.listen(8080);
